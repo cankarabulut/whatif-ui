@@ -100,3 +100,41 @@ input[type=number] { -moz-appearance: textfield; }
   background:#1a2335;
   border-color:transparent;
 }
+
+/* responsive tweaks */
+.kit { flex-wrap: wrap; }
+.kit label { display:flex; flex-direction:column; gap:6px; min-width: 180px; }
+
+@media (max-width: 1024px) {
+  .two-col { grid-template-columns: 1fr; }
+}
+
+/* Match row layout on small screens */
+@media (max-width: 640px) {
+  .match-row {
+    grid-template-columns: 100px 1fr; /* time | names; controls below */
+    gap: 8px;
+    padding: 10px;
+  }
+  .controls {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+  .outcome button { padding: 10px 14px; }
+  .score-box { width: 52px; }
+  .kit label { width: 100%; min-width: 0; }
+}
+
+/* Standings table: hide less critical cols on narrow screens (GF/GA/GD) */
+@media (max-width: 640px) {
+  .table-modern th:nth-child(8),
+  .table-modern td:nth-child(8), /* GF */
+  .table-modern th:nth-child(9),
+  .table-modern td:nth-child(9), /* GA */
+  .table-modern th:nth-child(10),
+  .table-modern td:nth-child(10) /* GD */
+  { display: none; }
+}
+
+/* Make table scrollable if needed */
+.table-wrap { overflow-x:auto; }
