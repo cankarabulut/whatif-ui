@@ -40,7 +40,25 @@ h2 { font-size: 20px; margin: 16px 0 8px; }
   line-height: 1.25;
 }
 .team.small { font-size: 14px; opacity: .95; }
-.controls { display:flex; align-items:center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: nowrap;        /* artık alt alta inmez */
+}
+
+.controls .score-box {
+  display: inline-block;
+  width: 48px;
+  text-align: center;
+}
+
+.controls span {
+  display: inline-block;
+  margin: 0 2px;
+}
+
 .outcome { display:inline-flex; gap: 4px; background:#0b1423; padding:4px; border-radius:10px; border:1px solid rgba(255,255,255,0.08); }
 .outcome button { border:none; padding:6px 10px; border-radius:8px; background:transparent; color:var(--fg); cursor:pointer; }
 .outcome button.active { background:#1a2335; }
@@ -99,7 +117,7 @@ input[type=number] { -moz-appearance: textfield; }
     gap: 8px;
     padding: 10px;
   }
-  .controls { grid-column: 1 / -1; justify-content: flex-start; }
+  .controls { grid-column: 1 / -1; justify-content: flex-start; flex-wrap: nowrap; }
   .outcome button { padding: 10px 14px; }
   .score-box { width: 52px; }
   .kit label { width: 100%; min-width: 0; }

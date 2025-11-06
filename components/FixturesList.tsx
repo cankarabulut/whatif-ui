@@ -105,7 +105,7 @@ export default function FixturesList({
                     className="score-box"
                     type="number"
                     min={0}
-                    placeholder="HG"
+                    placeholder="G"
                     value={p.home ?? ''}
                     disabled={!editable}
                     onChange={(e) => onPredict({ ...p, home: e.target.value === '' ? null : Number(e.target.value) })}
@@ -115,7 +115,7 @@ export default function FixturesList({
                     className="score-box"
                     type="number"
                     min={0}
-                    placeholder="AG"
+                    placeholder="G"
                     value={p.away ?? ''}
                     disabled={!editable}
                     onChange={(e) => onPredict({ ...p, away: e.target.value === '' ? null : Number(e.target.value) })}
