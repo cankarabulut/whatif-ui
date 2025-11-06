@@ -21,6 +21,7 @@ type TableRow = {
 
 const STR = {
   tr: {
+    lang: 'tr',
     league: 'Lig',
     season: 'Sezon',
     round: 'Hafta',
@@ -31,32 +32,26 @@ const STR = {
     loading: 'Yükleniyor…',
     no_standings: 'Puan durumu yok.',
     no_fixtures: 'Seçili hafta için maç bulunamadı.',
+    team: 'Takım', played: 'O', won: 'G', draw: 'B', lost: 'M', points: 'P', gf: 'AG', ga: 'YG', gd: 'AV',
   },
   en: {
+    lang: 'en',
     league: 'League',
     season: 'Season',
     round: 'Round',
     fixtures: 'Fixtures',
     standings: 'Standings',
-    only_round: '{STR[lang].only_round}',
+    only_round: 'Only matches from the selected round are shown.',
     reset: 'Reset Predictions',
-    loading: '{STR[lang].loading}',
+    loading: 'Loading…',
     no_standings: 'No standings.',
     no_fixtures: 'No fixtures for selected round.',
+    team: 'Team', played: 'P', won: 'W', draw: 'D', lost: 'L', points: 'Pts', gf: 'GF', ga: 'GA', gd: 'GD',
   }
 };
 
 export default function HomePage() {
-
   const [lang, setLang] = useState<'tr'|'en'>('tr');
-// Load persisted language
-useEffect(() => {
-  try {
-    const saved = localStorage.getItem('lang');
-    if (saved === 'tr' || saved === 'en') setLang(saved);
-  } catch {}
-}, []);
-
   const [league, setLeague] = useState<string>(DEFAULTS.league);
   const [season, setSeason] = useState<string>(DEFAULTS.season);
   const [round, setRound] = useState<string>('');
@@ -67,33 +62,43 @@ useEffect(() => {
   const [fixtures, setFixtures] = useState<any>(null);
   const [pred, setPred] = useState<Record<string|number, Prediction>>({});
 
+  // persist language
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('lang');
+      if (saved === 'tr' || saved === 'en') setLang(saved);
+    } catch {}
+  }, []);
+
   const title = useMemo(() => `${league} ${season}`, [league, season]);
   const currentYear = new Date().getFullYear().toString();
 
-  // Load rounds and select default round (active for current year, else last)
+  // Load rounds and set default round (current year => active; past years => last)
   useEffect(() => {
     (async () => {
       try {
         const r = await fetchRounds({ league, season });
         const rounds = Array.isArray(r?.data?.rounds) ? r.data.rounds.map((x: any) => String(x.round)) : [];
         setRoundOptions(rounds);
+
         if (rounds.length > 0) {
           if (season === currentYear) {
             const active = r?.data?.active;
-            setRound(String(active ?? rounds[rounds.length-1]));
+            setRound(String(active ?? rounds[rounds.length - 1]));
           } else {
-            setRound(String(rounds[rounds.length-1]));
+            setRound(String(rounds[rounds.length - 1])); // always last round for past seasons
           }
         } else {
           setRound('');
         }
-      } catch (e) {
+      } catch {
         setRoundOptions([]);
+        setRound('');
       }
     })();
   }, [league, season]);
 
-  // Load standings & fixtures (selected round only) + strict round filter
+  // Load standings & fixtures for selected round; strict round-only filter
   async function loadData() {
     setError('');
     setLoading(true);
@@ -103,15 +108,17 @@ useEffect(() => {
         fetchFixtures({ league, season, round: round || undefined }),
       ]);
       setStandings(s.data);
+
       const all = (f.data?.matches || []);
       const rr = String(round || '');
       const only = all.filter((m:any) => {
         const r = m.round ?? m.matchday ?? m.league?.round;
         if (r == null) return true;
         const rs = String(r);
-        return rs === rr || rs.endsWith(' ' + rr) || rs.endsWith('-'+rr) || rs.endsWith(' '+rr);
+        return rs === rr || rs.endsWith(' ' + rr) || rs.endsWith('-' + rr) || rs.endsWith(' ' + rr);
       });
       setFixtures({ ...f.data, matches: only });
+
       setPred({}); // reset predictions on data load
     } catch (e: any) {
       setError(e?.message || 'Request failed');
@@ -121,7 +128,7 @@ useEffect(() => {
   }
   useEffect(() => { void loadData(); }, [league, season, round]);
 
-  // Adjusted table from predictions (selected round only)
+  // Adjust standings with predictions (selected round only)
   const adjustedTable: TableRow[] | null = useMemo(() => {
     if (!standings?.table) return null;
     const base = standings.table as TableRow[];
@@ -145,7 +152,7 @@ useEffect(() => {
     const matches = fixtures?.matches || [];
     for (const m of matches) {
       const upper = String(m.status || '').toUpperCase();
-      const editable = upper !== 'FINISHED' && upper !== 'FT';
+      const editable = !['FINISHED','FT','AET','PEN'].includes(upper);
       const p = pred[String(m.id)];
       if (!editable || !p) continue;
 
@@ -177,6 +184,7 @@ useEffect(() => {
           <button className={lang==='tr'?'active':''} onClick={()=>{ setLang('tr'); try{ localStorage.setItem('lang','tr'); }catch{} }}>Türkçe</button>
           <button className={lang==='en'?'active':''} onClick={()=>{ setLang('en'); try{ localStorage.setItem('lang','en'); }catch{} }}>English</button>
         </div>
+
         <LeaguePicker
           league={league}
           season={season}
@@ -187,17 +195,22 @@ useEffect(() => {
             if (next.season !== undefined) setSeason(next.season);
             if (next.round !== undefined) setRound(next.round);
           }}
-        t={STR[lang]} />
+          t={STR[lang]}
+        />
+
         {loading && <div className="small">{STR[lang].loading}</div>}
         {error && <div className="small" style={{color:'#ffb4b4'}}>{error}</div>}
+
         <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
           <h2 style={{margin:0}}>{STR[lang].fixtures} — {title}{round ? ` (${STR[lang].round} ${round})` : ''}</h2>
           <button className="btn primary" onClick={()=>setPred({})}>{STR[lang].reset}</button>
         </div>
         <div className="small" style={{margin:'6px 0 12px'}}>{STR[lang].only_round}</div>
+
         <FixturesList
           data={fixtures?.matches || []}
-          predictions={pred} t={STR[lang]}
+          predictions={pred}
+          t={STR[lang]}
           onPredict={(p)=>setPred(prev=>{
             const k = String(p.id);
             const np: any = { ...prev, [k]: p };
