@@ -18,6 +18,8 @@ const FD_LEAGUES = [
   { code: 'CL',  name: 'Champions League' },
   { code: 'DED', name: 'Eredivisie' },
   { code: 'PPL', name: 'Primeira Liga' },
+  { code: 'BSA', name: 'Campeonato Brasileiro Série A'},
+  { code: 'ELC', name: 'Championship'}  
 ];
 
 // Şampiyonlar Ligi ve genel round etiketleri
