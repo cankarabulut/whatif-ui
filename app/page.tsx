@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { fetchStandings, fetchFixtures, fetchRounds, DEFAULTS } from '../lib/api';
+import { fetchStandings, fetchFixtures, fetchRounds, DEFAULTS, type RoundMeta } from '../lib/api';
 import StandingsTable from '../components/StandingsTable';
 import FixturesList, { type Prediction } from '../components/FixturesList';
 import LeaguePicker from '../components/LeaguePicker';
@@ -18,6 +18,14 @@ type TableRow = {
   goalsAgainst: number;
   goalDiff: number;
 };
+
+function parseRoundNumber(value: unknown): number | null {
+  if (value == null) return null;
+  const direct = Number(value);
+  if (Number.isFinite(direct)) return direct;
+  const match = String(value).match(/(\d+)\s*$/);
+  return match ? Number(match[1]) : null;
+}
 
 const STR = {
   tr: {
@@ -78,7 +86,9 @@ export default function HomePage() {
     (async () => {
       try {
         const r = await fetchRounds({ league, season });
-        const rounds = Array.isArray(r?.data?.rounds) ? r.data.rounds.map((x: any) => String(x.round)) : [];
+        const rounds = Array.isArray(r?.data?.rounds)
+          ? r.data.rounds.map((x: RoundMeta) => String(x.round))
+          : [];
         setRoundOptions(rounds);
 
         if (rounds.length > 0) {
@@ -109,13 +119,14 @@ export default function HomePage() {
       ]);
       setStandings(s.data);
 
-      const all = (f.data?.matches || []);
-      const rr = String(round || '');
-      const only = all.filter((m:any) => {
-        const r = m.round ?? m.matchday ?? m.league?.round;
-        if (r == null) return true;
-        const rs = String(r);
-        return rs === rr || rs.endsWith(' ' + rr) || rs.endsWith('-' + rr) || rs.endsWith(' ' + rr);
+      const all = (f.data?.matches || []) as Array<Record<string, unknown>>;
+      const selectedRound = parseRoundNumber(round);
+      const only = all.filter((m) => {
+        if (selectedRound == null) return true;
+        const matchRound = parseRoundNumber(
+          (m as any).round ?? (m as any).matchday ?? (m as any).league?.round
+        );
+        return matchRound == null ? true : matchRound === selectedRound;
       });
       setFixtures({ ...f.data, matches: only });
 
