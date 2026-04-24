@@ -469,6 +469,7 @@ h2 { font-size: var(--font-lg); margin: 0 0 var(--space-2); font-weight: 600; le
 }
 .outcome button:hover { color: var(--text-1); }
 .outcome button.active { background: var(--brand); color: #fff; }
+.outcome button:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .score-box {
   width: 52px;
@@ -484,6 +485,7 @@ h2 { font-size: var(--font-lg); margin: 0 0 var(--space-2); font-weight: 600; le
   font-family: inherit;
 }
 .score-box:focus { outline: 2px solid var(--brand); outline-offset: 0; }
+.score-box:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* Hide number input spinners */
 input[type=number]::-webkit-outer-spin-button,
@@ -535,6 +537,18 @@ input[type=number] { -moz-appearance: textfield; }
   font-weight: 600;
   position: relative;
 }
+.standings td.c-rank .rank-value {
+  display: inline-block;
+  min-width: 14px;
+}
+.standings td.c-rank .rank-move {
+  display: inline-block;
+  margin-left: 3px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.standings td.c-rank .rank-move.up { color: var(--success); }
+.standings td.c-rank .rank-move.down { color: var(--live); }
 .standings td.c-rank .rank-bar {
   position: absolute;
   left: 0;

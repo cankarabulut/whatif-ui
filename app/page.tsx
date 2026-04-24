@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { fetchStandings, fetchFixtures, fetchRounds, DEFAULTS, type RoundMeta } from '../lib/api';
+import { fetchFixtures, fetchRounds, DEFAULTS, type RoundMeta } from '../lib/api';
 import StandingsTable, { type Row as TableRow } from '../components/StandingsTable';
 import FixturesList, { type Prediction, type Match } from '../components/FixturesList';
 import LeaguePicker from '../components/LeaguePicker';
@@ -62,12 +62,11 @@ export default function HomePage() {
   const [roundOptions, setRoundOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
-  const [standings, setStandings] = useState<any>(null);
   const [fixtures, setFixtures] = useState<any>(null);
+  const [allFixtures, setAllFixtures] = useState<Match[]>([]);
   const [pred, setPred] = useState<Record<string | number, Prediction>>({});
 
   const title = useMemo(() => `${league} · ${season}`, [league, season]);
-  const currentYear = new Date().getFullYear().toString();
 
   useEffect(() => {
     (async () => {
@@ -79,12 +78,8 @@ export default function HomePage() {
         setRoundOptions(rounds);
 
         if (rounds.length > 0) {
-          if (season === currentYear) {
-            const active = r?.data?.active;
-            setRound(String(active ?? rounds[rounds.length - 1]));
-          } else {
-            setRound(String(rounds[rounds.length - 1]));
-          }
+          const active = r?.data?.active;
+          setRound(String(active ?? rounds[rounds.length - 1]));
         } else {
           setRound('');
         }
@@ -93,21 +88,20 @@ export default function HomePage() {
         setRound('');
       }
     })();
-  }, [league, season, currentYear]);
+  }, [league, season]);
 
   async function loadData() {
     setError('');
     setLoading(true);
     try {
-      const [s, f] = await Promise.all([
-        fetchStandings({ league, season }),
+      const [f, allResponse] = await Promise.all([
         fetchFixtures({ league, season, round: round || undefined }),
+        fetchFixtures({ league, season }),
       ]);
-      setStandings(s.data);
 
-      const all = (f.data?.matches || []) as Array<Record<string, unknown>>;
+      const selectedMatches = (f.data?.matches || []) as Array<Record<string, unknown>>;
       const selectedRound = parseRoundNumber(round);
-      const only = all.filter((m) => {
+      const only = selectedMatches.filter((m) => {
         if (selectedRound == null) return true;
         const matchRound = parseRoundNumber(
           (m as any).round ?? (m as any).matchday ?? (m as any).league?.round
@@ -115,6 +109,7 @@ export default function HomePage() {
         return matchRound == null ? true : matchRound === selectedRound;
       });
       setFixtures({ ...f.data, matches: only });
+      setAllFixtures(((allResponse.data?.matches || []) as Match[]));
       setPred({});
     } catch (e: any) {
       setError(e?.message || 'Request failed');
@@ -124,40 +119,65 @@ export default function HomePage() {
   }
   useEffect(() => { void loadData(); }, [league, season, round]);
 
-  const adjustedTable: TableRow[] | null = useMemo(() => {
-    if (!standings?.table) return null;
-    const base = standings.table as TableRow[];
-    const anyPred = Object.values(pred).some((p) => (p.home != null && p.away != null) || p.outcome);
-    if (!anyPred) return null;
-
+  const actualTable: TableRow[] = useMemo(() => {
+    const selectedRound = parseRoundNumber(round);
     const table: Record<string, TableRow> = {};
-    for (const row of base) table[row.team] = { ...row };
 
-    function applyResult(home: string, away: string, hs: number, as: number) {
-      const h = table[home]; const a = table[away];
-      if (!h || !a) return;
-      h.played += 1; a.played += 1;
-      h.goalsFor += hs; h.goalsAgainst += as; h.goalDiff = h.goalsFor - h.goalsAgainst;
-      a.goalsFor += as; a.goalsAgainst += hs; a.goalDiff = a.goalsFor - a.goalsAgainst;
-      if (hs > as) { h.won += 1; h.points += 3; a.lost += 1; }
-      else if (hs < as) { a.won += 1; a.points += 3; h.lost += 1; }
-      else { h.draw += 1; a.draw += 1; h.points += 1; a.points += 1; }
+    function ensureTeam(name: string, crest?: string | null, tla?: string | null, shortName?: string | null) {
+      if (!name || table[name]) return;
+      table[name] = {
+        rank: 0,
+        team: name,
+        played: 0,
+        won: 0,
+        draw: 0,
+        lost: 0,
+        points: 0,
+        goalsFor: 0,
+        goalsAgainst: 0,
+        goalDiff: 0,
+        crest: crest ?? null,
+        tla: tla ?? null,
+        shortName: shortName ?? null,
+      };
     }
 
-    const matches = fixtures?.matches || [];
-    for (const m of matches) {
-      const upper = String(m.status || '').toUpperCase();
-      const editable = !['FINISHED', 'FT', 'AET', 'PEN'].includes(upper);
-      const p = pred[String(m.id)];
-      if (!editable || !p) continue;
+    function applyResult(home: string, away: string, hs: number, as: number, sign = 1) {
+      const h = table[home]; const a = table[away];
+      if (!h || !a) return;
+      h.played += sign; a.played += sign;
+      h.goalsFor += hs * sign; h.goalsAgainst += as * sign; h.goalDiff = h.goalsFor - h.goalsAgainst;
+      a.goalsFor += as * sign; a.goalsAgainst += hs * sign; a.goalDiff = a.goalsFor - a.goalsAgainst;
+      if (hs > as) { h.won += sign; h.points += 3 * sign; a.lost += sign; }
+      else if (hs < as) { a.won += sign; a.points += 3 * sign; h.lost += sign; }
+      else { h.draw += sign; a.draw += sign; h.points += sign; a.points += sign; }
+    }
 
-      let hs = p.home, as = p.away;
-      if ((hs == null || as == null) && p.outcome) {
-        if (p.outcome === 'H') { hs = 1; as = 0; }
-        else if (p.outcome === 'A') { hs = 0; as = 1; }
-        else { hs = 0; as = 0; }
-      }
-      if (hs != null && as != null) applyResult(m.home, m.away, hs, as);
+    for (const m of allFixtures) {
+      ensureTeam(m.home, m.homeCrest, m.homeTla, m.homeShort);
+      ensureTeam(m.away, m.awayCrest, m.awayTla, m.awayShort);
+    }
+
+    for (const m of allFixtures) {
+      const matchRound = parseRoundNumber((m as any).round ?? (m as any).matchday ?? (m as any).league?.round);
+      if (selectedRound != null && matchRound != null && matchRound > selectedRound) continue;
+      const upper = String(m.status || '').toUpperCase();
+      const finished = ['FINISHED', 'FT', 'AET', 'PEN'].includes(upper);
+      const ftH =
+        m?.score?.fullTime?.home ??
+        m?.score?.ft?.home ??
+        m?.score?.homeTeam ??
+        m?.score?.home ??
+        m?.result?.home ??
+        null;
+      const ftA =
+        m?.score?.fullTime?.away ??
+        m?.score?.ft?.away ??
+        m?.score?.awayTeam ??
+        m?.score?.away ??
+        m?.result?.away ??
+        null;
+      if (finished && ftH != null && ftA != null) applyResult(m.home, m.away, Number(ftH), Number(ftA));
     }
 
     const rows = Object.values(table).sort((a, b) => {
@@ -167,9 +187,78 @@ export default function HomePage() {
     });
     rows.forEach((r, i) => (r.rank = i + 1));
     return rows;
-  }, [standings, fixtures, pred]);
+  }, [allFixtures, round]);
 
-  const tableToShow = adjustedTable ?? (standings?.table || []);
+  const adjustedTable: TableRow[] | null = useMemo(() => {
+    const base = actualTable;
+    if (!base.length) return null;
+    const anyPred = Object.values(pred).some((p) => (p.home != null && p.away != null) || p.outcome);
+    if (!anyPred) return null;
+
+    const table: Record<string, TableRow> = {};
+    for (const row of base) table[row.team] = { ...row };
+
+    function applyResult(home: string, away: string, hs: number, as: number, sign = 1) {
+      const h = table[home]; const a = table[away];
+      if (!h || !a) return;
+      h.played += sign; a.played += sign;
+      h.goalsFor += hs * sign; h.goalsAgainst += as * sign; h.goalDiff = h.goalsFor - h.goalsAgainst;
+      a.goalsFor += as * sign; a.goalsAgainst += hs * sign; a.goalDiff = a.goalsFor - a.goalsAgainst;
+      if (hs > as) { h.won += sign; h.points += 3 * sign; a.lost += sign; }
+      else if (hs < as) { a.won += sign; a.points += 3 * sign; h.lost += sign; }
+      else { h.draw += sign; a.draw += sign; h.points += sign; a.points += sign; }
+    }
+
+    const matches = fixtures?.matches || [];
+    for (const m of matches) {
+      const p = pred[String(m.id)];
+      if (!p) continue;
+
+      const upper = String(m.status || '').toUpperCase();
+      const finished = ['FINISHED', 'FT', 'AET', 'PEN'].includes(upper);
+      const ftH =
+        m?.score?.fullTime?.home ??
+        m?.score?.ft?.home ??
+        m?.score?.homeTeam ??
+        m?.score?.home ??
+        m?.result?.home ??
+        null;
+      const ftA =
+        m?.score?.fullTime?.away ??
+        m?.score?.ft?.away ??
+        m?.score?.awayTeam ??
+        m?.score?.away ??
+        m?.result?.away ??
+        null;
+
+      let hs = p.home, as = p.away;
+      if ((hs == null || as == null) && p.outcome) {
+        if (p.outcome === 'H') { hs = 1; as = 0; }
+        else if (p.outcome === 'A') { hs = 0; as = 1; }
+        else { hs = 0; as = 0; }
+      }
+      if (hs != null && as != null) {
+        if (finished && ftH != null && ftA != null) {
+          applyResult(m.home, m.away, Number(ftH), Number(ftA), -1);
+        }
+        applyResult(m.home, m.away, hs, as);
+      }
+    }
+
+    const rows = Object.values(table).sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.goalDiff !== a.goalDiff) return b.goalDiff - a.goalDiff;
+      return b.goalsFor - a.goalsFor;
+    });
+    rows.forEach((r, i) => (r.rank = i + 1));
+    return rows;
+  }, [actualTable, fixtures, pred]);
+
+  const tableToShow = adjustedTable ?? actualTable;
+  const previousRankByTeam = useMemo(() => {
+    if (!adjustedTable) return undefined;
+    return Object.fromEntries(actualTable.map((row) => [row.team, row.rank]));
+  }, [actualTable, adjustedTable]);
   const t = STR[lang];
 
   return (
@@ -229,7 +318,16 @@ export default function HomePage() {
           <h2>{t.standings}</h2>
           <span className="small">{title}</span>
         </div>
-        {loading ? <Skeleton rows={10} /> : <StandingsTable data={tableToShow} league={league} t={t} />}
+        {loading ? (
+          <Skeleton rows={10} />
+        ) : (
+          <StandingsTable
+            data={tableToShow}
+            league={league}
+            t={t}
+            previousRankByTeam={previousRankByTeam}
+          />
+        )}
       </section>
     </main>
   );

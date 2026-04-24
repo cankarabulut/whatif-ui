@@ -83,7 +83,7 @@ export default function FixturesList({
     const id = match.id;
     const prev = predictions[String(id)] || { id, home: null, away: null, outcome: undefined };
     const outcome = prev.outcome === val ? undefined : val;
-    onPredict({ ...prev, outcome });
+    onPredict({ ...prev, home: null, away: null, outcome });
   }
 
   return (
@@ -97,7 +97,7 @@ export default function FixturesList({
 
             const finished = isFinishedStatus(m.status);
             const live = isLiveStatus(m.status);
-            const editable = !finished;
+            const editable = true;
 
             const hasPrediction = !!(p.outcome || p.home != null || p.away != null);
             const isExpanded = !!expanded[k];
@@ -182,14 +182,17 @@ export default function FixturesList({
                     <div className="outcome" role="group" aria-label="1 X 2">
                       <button
                         className={p.outcome === 'H' ? 'active' : ''}
+                        disabled={(p.home != null || p.away != null) && p.outcome !== 'H'}
                         onClick={() => setOutcome(m, 'H')}
                       >1</button>
                       <button
                         className={p.outcome === 'D' ? 'active' : ''}
+                        disabled={(p.home != null || p.away != null) && p.outcome !== 'D'}
                         onClick={() => setOutcome(m, 'D')}
                       >X</button>
                       <button
                         className={p.outcome === 'A' ? 'active' : ''}
+                        disabled={(p.home != null || p.away != null) && p.outcome !== 'A'}
                         onClick={() => setOutcome(m, 'A')}
                       >2</button>
                     </div>
@@ -198,10 +201,11 @@ export default function FixturesList({
                       type="number"
                       min={0}
                       placeholder="G"
+                      disabled={!!p.outcome}
                       aria-label={(t?.lang === 'tr' ? 'Ev sahibi skor' : 'Home score')}
                       value={p.home ?? ''}
                       onChange={(e) =>
-                        onPredict({ ...p, home: e.target.value === '' ? null : Number(e.target.value) })
+                        onPredict({ ...p, outcome: undefined, home: e.target.value === '' ? null : Number(e.target.value) })
                       }
                     />
                     <span style={{ color: 'var(--text-3)' }}>:</span>
@@ -210,10 +214,11 @@ export default function FixturesList({
                       type="number"
                       min={0}
                       placeholder="G"
+                      disabled={!!p.outcome}
                       aria-label={(t?.lang === 'tr' ? 'Deplasman skor' : 'Away score')}
                       value={p.away ?? ''}
                       onChange={(e) =>
-                        onPredict({ ...p, away: e.target.value === '' ? null : Number(e.target.value) })
+                        onPredict({ ...p, outcome: undefined, away: e.target.value === '' ? null : Number(e.target.value) })
                       }
                     />
                   </div>

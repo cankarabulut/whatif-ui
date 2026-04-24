@@ -23,10 +23,12 @@ export default function StandingsTable({
   data,
   league,
   t,
+  previousRankByTeam,
 }: {
   data: Row[];
   league: string;
   t?: any;
+  previousRankByTeam?: Record<string, number>;
 }) {
   if (!data || data.length === 0) {
     return <div className="small">{t?.no_standings || 'No standings.'}</div>;
@@ -67,12 +69,17 @@ export default function StandingsTable({
             const diffClass = r.goalDiff > 0 ? 'pos' : r.goalDiff < 0 ? 'neg' : '';
             const diffLabel = r.goalDiff > 0 ? `+${r.goalDiff}` : String(r.goalDiff);
             const tla = r.tla && r.tla.length <= 4 ? r.tla : null;
+            const previousRank = previousRankByTeam?.[r.team];
+            const movedUp = previousRank != null && r.rank < previousRank;
+            const movedDown = previousRank != null && r.rank > previousRank;
 
             return (
               <tr key={`${idx}-${r.team}`}>
                 <td className={'c-rank' + (zone ? ' zone-' + zone : '')}>
                   <span className="rank-bar" aria-hidden="true" />
-                  {r.rank}
+                  <span className="rank-value">{r.rank}</span>
+                  {movedUp && <span className="rank-move up" aria-label={t?.lang === 'tr' ? 'Yukarı çıktı' : 'Moved up'}>↑</span>}
+                  {movedDown && <span className="rank-move down" aria-label={t?.lang === 'tr' ? 'Aşağı düştü' : 'Moved down'}>↓</span>}
                 </td>
                 <td className="c-team">
                   <div className="team-inner">
