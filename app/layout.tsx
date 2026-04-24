@@ -1,26 +1,24 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-
-const inter = Inter({
-  subsets: ['latin', 'latin-ext'],
-  variable: '--font-inter',
-  display: 'swap',
-});
+import { LanguageProvider } from '../lib/LanguageProvider';
+import AppHeader from '../components/AppHeader';
 
 export const metadata: Metadata = {
-  title: 'WhatIf FC — Futbol Tahmin Simülatörü',
-  description:
-    'Avrupa liglerinin canlı fikstür ve puan durumunu takip et, oynanmamış maçlara tahmin girerek puan tablosunun nasıl değişeceğini gör.',
-  icons: {
-    icon: '/favicon.svg',
-  },
+  title: 'WhatIf FC',
+  description: 'WhatIf FC – Canlı skorlar, fikstür ve puan durumu senaryoları',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="tr" className={`dark ${inter.variable}`}>
-      <body className="min-h-screen font-sans">{children}</body>
+    <html lang="tr">
+      <body>
+        <LanguageProvider>
+          <AppHeader />
+          <div className="container">
+            {children}
+          </div>
+        </LanguageProvider>
+      </body>
     </html>
   );
 }

@@ -1,64 +1,35 @@
 'use client';
 
-import { Trophy, CalendarDays, Radio } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
-import { getLeague, formatSeasonLabel, formatRoundLabel } from '@/lib/leagues';
-import { LanguageToggle, type Lang } from './LanguageToggle';
+import { useLanguage } from '../lib/LanguageProvider';
 
-type Props = {
-  league: string;
-  season: string;
-  round: string;
-  seasonActive?: boolean;
-  lang: Lang;
-  onLangChange: (l: Lang) => void;
-};
-
-export function AppHeader({ league, season, round, seasonActive, lang, onLangChange }: Props) {
-  const meta = getLeague(league);
-  const seasonLabel = formatSeasonLabel(league, season);
-  const roundLabel = round ? formatRoundLabel(league, round, lang) : '';
+export default function AppHeader() {
+  const { lang, setLang } = useLanguage();
 
   return (
-    <header className="relative overflow-hidden border-b border-border-subtle">
-      <div
-        className={cn(
-          'absolute inset-0 -z-10 bg-gradient-to-br opacity-60',
-          meta?.accent ?? 'from-brand/20 to-info/10'
-        )}
-      />
-      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-transparent via-bg/40 to-bg" />
-
-      <div className="container flex items-center justify-between gap-4 py-5 md:py-6">
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border-strong bg-surface text-brand shadow-card">
-            <Trophy className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-fg-muted text-2xs uppercase tracking-[0.18em]">
-              {meta?.country && <span className="text-base leading-none">{meta.country}</span>}
-              <span>{lang === 'tr' ? 'Ne olsaydı' : 'What-if'}</span>
-            </div>
-            <h1 className="truncate text-lg md:text-2xl font-bold leading-tight text-fg">
-              {meta?.name ?? league}
-            </h1>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5">
-              <Badge variant="neutral" className="gap-1">
-                <CalendarDays className="h-3 w-3" />
-                {seasonLabel}
-              </Badge>
-              {roundLabel && (
-                <Badge variant={seasonActive ? 'default' : 'neutral'} className="gap-1">
-                  {seasonActive && <Radio className="h-3 w-3 animate-pulse-dot" />}
-                  {roundLabel}
-                </Badge>
-              )}
-            </div>
-          </div>
+    <header className="app-header">
+      <div className="app-header-inner">
+        <div className="brand">
+          <span className="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M12 3 L13.5 7.5 L18 8 L14.5 11 L15.5 15.5 L12 13 L8.5 15.5 L9.5 11 L6 8 L10.5 7.5 Z"
+                fill="currentColor" opacity="0.9" />
+            </svg>
+          </span>
+          <span>WhatIf FC</span>
         </div>
-
-        <LanguageToggle value={lang} onChange={onLangChange} />
+        <div className="lang-toggle" role="group" aria-label="Language">
+          <button
+            className={lang === 'tr' ? 'active' : ''}
+            onClick={() => setLang('tr')}
+            aria-pressed={lang === 'tr'}
+          >TR</button>
+          <button
+            className={lang === 'en' ? 'active' : ''}
+            onClick={() => setLang('en')}
+            aria-pressed={lang === 'en'}
+          >EN</button>
+        </div>
       </div>
     </header>
   );

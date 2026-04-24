@@ -1,11 +1,15 @@
 'use client';
 
-import { useMemo } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
-import type { Match } from '@/lib/api';
-import type { Lang } from './LanguageToggle';
+import { useState } from 'react';
+import TeamCrest from './TeamCrest';
+import {
+  isFinishedStatus,
+  isLiveStatus,
+  formatTime,
+  formatDateHeader,
+  groupByDate,
+  shortenTeam,
+} from '../lib/teamDisplay';
 
 export type Prediction = {
   id: string | number;
@@ -14,216 +18,211 @@ export type Prediction = {
   outcome?: 'H' | 'D' | 'A';
 };
 
-type Props = {
-  data: Match[];
-  predictions: Record<string | number, Prediction>;
-  onPredict: (p: Prediction) => void;
-  lang: Lang;
+export type Match = {
+  id: number | string;
+  utcDate: string;
+  status: string;
+  home: string;
+  away: string;
+  homeCrest?: string | null;
+  awayCrest?: string | null;
+  homeTla?: string | null;
+  awayTla?: string | null;
+  homeShort?: string | null;
+  awayShort?: string | null;
+  round?: any;
+  score?: any;
+  result?: any;
+  league?: any;
 };
 
-const FINISHED_STATUSES = new Set(['FINISHED', 'FT', 'AET', 'PEN']);
-const LIVE_STATUSES = new Set(['IN_PLAY', 'LIVE', '1H', '2H', 'HT', 'PAUSED']);
-
-function matchStatusVariant(status: string) {
-  const s = status.toUpperCase();
-  if (FINISHED_STATUSES.has(s)) return 'finished' as const;
-  if (LIVE_STATUSES.has(s)) return 'live' as const;
-  return 'upcoming' as const;
-}
-
 function readScore(m: Match) {
-  const home =
+  const ftH =
     m?.score?.fullTime?.home ??
     m?.score?.ft?.home ??
     m?.score?.homeTeam ??
     m?.score?.home ??
     m?.result?.home ??
     null;
-  const away =
+  const ftA =
     m?.score?.fullTime?.away ??
     m?.score?.ft?.away ??
     m?.score?.awayTeam ??
     m?.score?.away ??
     m?.result?.away ??
     null;
-  return { home, away };
+  return { ftH, ftA };
 }
 
-function teamInitials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((w) => w[0]?.toUpperCase() ?? '')
-    .slice(0, 3)
-    .join('');
-}
+export default function FixturesList({
+  data,
+  predictions,
+  onPredict,
+  t,
+}: {
+  data: Match[];
+  predictions: Record<string | number, Prediction>;
+  onPredict: (p: Prediction) => void;
+  t?: any;
+}) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const locale = (t?.lang === 'tr' ? 'tr-TR' : 'en-GB');
 
-function TeamBadge({ name }: { name: string }) {
-  return (
-    <div
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-surface-muted text-[10px] font-bold tracking-tight text-fg-muted"
-      aria-hidden
-    >
-      {teamInitials(name)}
-    </div>
-  );
-}
+  if (!data?.length) {
+    return <div className="small" style={{ padding: 'var(--space-4) 0' }}>{t?.no_fixtures || 'No fixtures for selected round.'}</div>;
+  }
 
-function formatDate(iso: string, lang: Lang) {
-  const d = new Date(iso);
-  const date = new Intl.DateTimeFormat(lang === 'tr' ? 'tr-TR' : 'en-GB', {
-    day: '2-digit',
-    month: 'short',
-    weekday: 'short',
-  }).format(d);
-  const time = new Intl.DateTimeFormat(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(d);
-  return { date, time };
-}
+  const groups = groupByDate(data);
 
-export default function FixturesList({ data, predictions, onPredict, lang }: Props) {
-  const items = useMemo(
-    () => [...data].sort((a, b) => new Date(a.utcDate).getTime() - new Date(b.utcDate).getTime()),
-    [data]
-  );
+  function toggleExpand(id: string, canExpand: boolean) {
+    if (!canExpand) return;
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
 
-  if (!items.length) {
-    return (
-      <div className="rounded-2xl border border-dashed border-border bg-surface-muted/50 py-12 text-center text-sm text-fg-muted">
-        {lang === 'tr' ? 'Seçili hafta için maç bulunamadı.' : 'No fixtures for the selected round.'}
-      </div>
-    );
+  function setOutcome(match: Match, val: 'H' | 'D' | 'A') {
+    const id = match.id;
+    const prev = predictions[String(id)] || { id, home: null, away: null, outcome: undefined };
+    const outcome = prev.outcome === val ? undefined : val;
+    onPredict({ ...prev, outcome });
   }
 
   return (
-    <div className="grid gap-2.5">
-      {items.map((m) => {
-        const k = String(m.id);
-        const p =
-          predictions[k] ||
-          ({ id: m.id, home: null, away: null, outcome: undefined } as Prediction);
-        const statusVariant = matchStatusVariant(m.status);
-        const isFinished = statusVariant === 'finished';
-        const { date, time } = formatDate(m.utcDate, lang);
-        const { home: scoreHome, away: scoreAway } = readScore(m);
+    <div className="fixtures">
+      {groups.map((group) => (
+        <div key={group.key} className="fixture-group">
+          <div className="date-header">{formatDateHeader(group.items[0].utcDate, locale)}</div>
+          {group.items.map((m) => {
+            const k = String(m.id);
+            const p = predictions[k] || { id: m.id, home: null, away: null, outcome: undefined };
 
-        const setOutcome = (val: 'H' | 'D' | 'A') => {
-          const outcome = p.outcome === val ? undefined : val;
-          onPredict({ ...p, outcome });
-        };
+            const finished = isFinishedStatus(m.status);
+            const live = isLiveStatus(m.status);
+            const editable = !finished;
 
-        return (
-          <article
-            key={k}
-            className={cn(
-              'group relative grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl border border-border bg-surface p-3 md:p-4 transition-colors',
-              'hover:border-border-strong hover:bg-surface-hover',
-              statusVariant === 'live' && 'ring-1 ring-danger/40'
-            )}
-          >
-            {/* Left: date/time/status */}
-            <div className="flex w-16 md:w-20 flex-col items-start gap-1 border-r border-border-subtle pr-3">
-              <div className="text-2xs uppercase tracking-wider text-fg-subtle">{date}</div>
-              <div className="tabular text-sm font-semibold text-fg">{time}</div>
-              <Badge
-                variant={statusVariant}
-                className="mt-0.5 !py-0 !text-[9px] !tracking-wider"
+            const hasPrediction = !!(p.outcome || p.home != null || p.away != null);
+            const isExpanded = !!expanded[k];
+
+            const { ftH, ftA } = readScore(m);
+            const time = formatTime(m.utcDate, locale);
+
+            const homeDisplay = shortenTeam(m.home, m.homeTla, m.homeShort);
+            const awayDisplay = shortenTeam(m.away, m.awayTla, m.awayShort);
+
+            let winner: 'H' | 'A' | 'D' | null = null;
+            if (finished && ftH != null && ftA != null) {
+              if (ftH > ftA) winner = 'H';
+              else if (ftA > ftH) winner = 'A';
+              else winner = 'D';
+            }
+
+            return (
+              <div
+                key={k}
+                className={
+                  'fixture-row' +
+                  (hasPrediction ? ' predicted' : '') +
+                  (isExpanded ? ' expanded' : '')
+                }
+                onClick={() => toggleExpand(k, editable)}
+                role={editable ? 'button' : undefined}
+                aria-expanded={editable ? isExpanded : undefined}
               >
-                {statusVariant === 'live' && (
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-danger animate-pulse-dot" />
-                )}
-                {statusVariant === 'finished' ? 'FT' : statusVariant === 'live' ? 'LIVE' : (lang === 'tr' ? 'Yakında' : 'Upcoming')}
-              </Badge>
-            </div>
-
-            {/* Middle: teams */}
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <div className="flex items-center gap-2.5">
-                <TeamBadge name={m.home} />
-                <span className="truncate text-sm md:text-base font-semibold text-fg">{m.home}</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <TeamBadge name={m.away} />
-                <span className="truncate text-sm md:text-base font-semibold text-fg">{m.away}</span>
-              </div>
-            </div>
-
-            {/* Right: score or prediction controls */}
-            <div className="flex items-center justify-end">
-              {isFinished ? (
-                <div className="flex flex-col items-end gap-1 tabular">
-                  <div className="flex flex-col items-end rounded-xl border border-border bg-surface-muted px-3 py-1.5 leading-none">
-                    <span className="text-base md:text-lg font-bold text-fg">{scoreHome ?? '-'}</span>
-                    <span className="text-base md:text-lg font-bold text-fg-muted mt-0.5">{scoreAway ?? '-'}</span>
-                  </div>
+                <div className="fixture-time">
+                  {finished ? (t?.lang === 'tr' ? 'Biten' : 'FT') : time}
                 </div>
-              ) : (
-                <div className="flex flex-col items-end gap-2">
-                  <div className="inline-flex overflow-hidden rounded-lg border border-border bg-bg-elevated">
-                    {(['H', 'D', 'A'] as const).map((o) => {
-                      const label = o === 'H' ? '1' : o === 'D' ? 'X' : '2';
-                      const active = p.outcome === o;
-                      return (
-                        <button
-                          key={o}
-                          type="button"
-                          onClick={() => setOutcome(o)}
-                          className={cn(
-                            'w-8 py-1 text-xs font-bold transition-colors',
-                            active
-                              ? 'bg-brand text-white'
-                              : 'text-fg-muted hover:bg-surface-hover hover:text-fg'
-                          )}
-                          aria-pressed={active}
-                        >
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="flex items-center gap-1 tabular">
-                    <Input
+
+                <div
+                  className={
+                    'fixture-team home' +
+                    (winner === 'A' ? ' dim' : winner === 'H' ? ' win' : '')
+                  }
+                >
+                  <span className="name" title={m.home}>{homeDisplay}</span>
+                  <TeamCrest url={m.homeCrest} tla={m.homeTla} name={m.home} size={22} />
+                </div>
+
+                <div className="fixture-score">
+                  {finished ? (
+                    <>
+                      <span className="final">{ftH ?? '-'}</span>
+                      <span className="sep">:</span>
+                      <span className="final">{ftA ?? '-'}</span>
+                    </>
+                  ) : (
+                    <span className="time-center">{time}</span>
+                  )}
+                </div>
+
+                <div
+                  className={
+                    'fixture-team away' +
+                    (winner === 'H' ? ' dim' : winner === 'A' ? ' win' : '')
+                  }
+                >
+                  <TeamCrest url={m.awayCrest} tla={m.awayTla} name={m.away} size={22} />
+                  <span className="name" title={m.away}>{awayDisplay}</span>
+                </div>
+
+                <div className="fixture-status">
+                  {finished ? (
+                    <span className="pill finished">FT</span>
+                  ) : live ? (
+                    <span className="pill live">{t?.lang === 'tr' ? 'CANLI' : 'LIVE'}</span>
+                  ) : hasPrediction ? (
+                    <span className="pill" style={{ background: 'rgba(26,79,255,0.15)', color: 'var(--brand-2)' }}>
+                      {p.outcome ?? (p.home != null && p.away != null ? `${p.home}-${p.away}` : '•')}
+                    </span>
+                  ) : (
+                    <span className="pill upcoming">{t?.lang === 'tr' ? 'TAHMİN' : 'PREDICT'}</span>
+                  )}
+                </div>
+
+                {editable && isExpanded && (
+                  <div className="fixture-predict" onClick={(e) => e.stopPropagation()}>
+                    <div className="outcome" role="group" aria-label="1 X 2">
+                      <button
+                        className={p.outcome === 'H' ? 'active' : ''}
+                        onClick={() => setOutcome(m, 'H')}
+                      >1</button>
+                      <button
+                        className={p.outcome === 'D' ? 'active' : ''}
+                        onClick={() => setOutcome(m, 'D')}
+                      >X</button>
+                      <button
+                        className={p.outcome === 'A' ? 'active' : ''}
+                        onClick={() => setOutcome(m, 'A')}
+                      >2</button>
+                    </div>
+                    <input
+                      className="score-box"
                       type="number"
-                      inputMode="numeric"
                       min={0}
-                      max={20}
+                      placeholder="G"
+                      aria-label={(t?.lang === 'tr' ? 'Ev sahibi skor' : 'Home score')}
                       value={p.home ?? ''}
                       onChange={(e) =>
-                        onPredict({
-                          ...p,
-                          home: e.target.value === '' ? null : Number(e.target.value),
-                        })
+                        onPredict({ ...p, home: e.target.value === '' ? null : Number(e.target.value) })
                       }
-                      className="no-spin h-8 w-10 px-1 text-center text-sm font-bold"
-                      placeholder="—"
-                      aria-label={`${m.home} prediction`}
                     />
-                    <span className="text-fg-subtle">:</span>
-                    <Input
+                    <span style={{ color: 'var(--text-3)' }}>:</span>
+                    <input
+                      className="score-box"
                       type="number"
-                      inputMode="numeric"
                       min={0}
-                      max={20}
+                      placeholder="G"
+                      aria-label={(t?.lang === 'tr' ? 'Deplasman skor' : 'Away score')}
                       value={p.away ?? ''}
                       onChange={(e) =>
-                        onPredict({
-                          ...p,
-                          away: e.target.value === '' ? null : Number(e.target.value),
-                        })
+                        onPredict({ ...p, away: e.target.value === '' ? null : Number(e.target.value) })
                       }
-                      className="no-spin h-8 w-10 px-1 text-center text-sm font-bold"
-                      placeholder="—"
-                      aria-label={`${m.away} prediction`}
                     />
                   </div>
-                </div>
-              )}
-            </div>
-          </article>
-        );
-      })}
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }
